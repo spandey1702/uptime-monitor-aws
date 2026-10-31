@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="30">
+  <title>Uptime Monitor</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: .6rem; border-bottom: 1px solid #eee; text-align: left; }
+    small { color: #777; }
+    .b { padding: .15rem .5rem; border-radius: 4px; font-size: .8rem; font-weight: 600; }
+    .up { background: #d9f5e3; color: #126b34; }
+    .down { background: #fde2e2; color: #9b1c1c; }
+    .pending { background: #eee; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Uptime Monitor</h1>
+  <table>
+    <tr><th>Status</th><th>Site</th><th>Uptime (24h)</th><th>Latency</th><th>Last check</th></tr>
+    {% for s in sites %}
+    <tr>
+      <td>
+        {% if s.is_up is none %}<span class="b pending">PENDING</span>
+        {% elif s.is_up %}<span class="b up">UP</span>
+        {% else %}<span class="b down">DOWN</span>{% endif %}
+      </td>
+      <td>{{ s.name }}<br><small>{{ s.url }}</small></td>
+      <td>{{ s.uptime ~ '%' if s.uptime is not none else '–' }}</td>
+      <td>{{ s.latency_ms ~ ' ms' if s.latency_ms is not none else '–' }}</td>
+      <td>
+        {{ s.checked_at.strftime('%H:%M:%S UTC') if s.checked_at else '–' }}<br>
+        <small>{{ s.error or ('HTTP ' ~ s.status_code if s.status_code else '') }}</small>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No sites yet.</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
