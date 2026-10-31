@@ -1,9 +1,9 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="30">
+  <meta http-equiv="refresh" content="60">
   <title>Uptime Monitor</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #222; }
@@ -14,12 +14,30 @@
     .up { background: #d9f5e3; color: #126b34; }
     .down { background: #fde2e2; color: #9b1c1c; }
     .pending { background: #eee; color: #555; }
+    .error { background: #fde2e2; color: #9b1c1c; padding: .6rem .8rem; border-radius: 4px; }
+    .add { display: flex; gap: .5rem; margin: 1rem 0 1.5rem; flex-wrap: wrap; }
+    .add input { padding: .45rem; border: 1px solid #ccc; border-radius: 4px; }
+    .add input[name=url] { flex: 1; min-width: 220px; }
+    button { padding: .45rem .9rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .remove { font-size: .8rem; padding: .2rem .5rem; color: #9b1c1c; }
   </style>
 </head>
 <body>
   <h1>Uptime Monitor</h1>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form class="add" method="post" action="/monitors">
+    <label class="sr-only" for="name">Name</label>
+    <input id="name" name="name" placeholder="Name" maxlength="100" required>
+    <label class="sr-only" for="url">URL</label>
+    <input id="url" name="url" type="url" placeholder="https://example.com" maxlength="2048" required>
+    <button>Add</button>
+  </form>
+
   <table>
-    <tr><th>Status</th><th>Site</th><th>Uptime (24h)</th><th>Latency</th><th>Last check</th></tr>
+    <tr><th>Status</th><th>Site</th><th>Uptime (24h)</th><th>Latency</th><th>Last check</th><th></th></tr>
     {% for s in sites %}
     <tr>
       <td>
@@ -34,9 +52,14 @@
         {{ s.checked_at.strftime('%H:%M:%S UTC') if s.checked_at else '–' }}<br>
         <small>{{ s.error or ('HTTP ' ~ s.status_code if s.status_code else '') }}</small>
       </td>
+      <td>
+        <form method="post" action="/monitors/{{ s.id }}/delete">
+          <button class="remove">Remove</button>
+        </form>
+      </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No sites yet.</td></tr>
+    <tr><td colspan="6">No sites yet.</td></tr>
     {% endfor %}
   </table>
 </body>

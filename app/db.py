@@ -41,3 +41,44 @@ async def create_pool(database_url: str) -> asyncpg.Pool:
 async def fetch_status(pool: asyncpg.Pool) -> list[asyncpg.Record]:
     """One row per monitored site, for the status page."""
     return await pool.fetch(STATUS_QUERY)
+
+
+async def count_monitors(pool: asyncpg.Pool) -> int:
+    """How many sites are being monitored (for the cap)."""
+    return await pool.fetchval("SELECT count(*) FROM monitors")
+
+
+async def add_monitor(pool: asyncpg.Pool, name: str, url: str) -> int:
+    """Save a new site and return its id.
+    Raises asyncpg.UniqueViolationError if the URL already exists."""
+    return await pool.fetchval(
+        "INSERT INTO monitors (name, url) VALUES ($1, $2) RETURNING id",
+        name, url,
+    )
+
+
+async def list_monitors(pool: asyncpg.Pool) -> list[asyncpg.Record]:
+    """Every site to check (for the background checker)."""
+    return await pool.fetch("SELECT id, url FROM monitors ORDER BY id")
+
+
+async def insert_checks(pool: asyncpg.Pool, results: list[tuple]) -> None:
+    """Save one round of results in a single round trip.
+    Each result is (monitor_id, is_up, status_code, latency_ms, error)."""
+    await pool.executemany(
+        "INSERT INTO checks (monitor_id, is_up, status_code, latency_ms, error) "
+        "VALUES ($1, $2, $3, $4, $5)",
+        results,
+    )
+
+
+async def delete_old_checks(pool: asyncpg.Pool) -> None:
+    """Keep only the last 24 hours of checks, so the table stays small."""
+    await pool.execute("DELETE FROM checks WHERE checked_at < now() - interval '24 hours'")
+
+
+async def delete_monitor(pool: asyncpg.Pool, monitor_id: int) -> bool:
+    """Remove a site (its checks go with it, via ON DELETE CASCADE).
+    Returns False if no site had that id."""
+    result = await pool.execute("DELETE FROM monitors WHERE id = $1", monitor_id)
+    return result == "DELETE 1"
