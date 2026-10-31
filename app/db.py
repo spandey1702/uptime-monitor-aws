@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 
@@ -36,6 +37,12 @@ async def create_pool(database_url: str) -> asyncpg.Pool:
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA)
     return pool
+
+
+async def ping(pool: asyncpg.Pool, timeout: float = 2.0) -> None:
+    """Raise if the database doesn't answer within `timeout` seconds.
+    The timeout covers both getting a connection from the pool and the query."""
+    await asyncio.wait_for(pool.fetchval("SELECT 1"), timeout)
 
 
 async def fetch_status(pool: asyncpg.Pool) -> list[asyncpg.Record]:

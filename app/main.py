@@ -9,7 +9,7 @@ from urllib.parse import urlencode, urlparse
 
 import asyncpg
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 import checker
@@ -105,6 +105,36 @@ async def create_monitor(
         return back_to_home(error)
     log.info("Added monitor %s %r", monitor_id, url)
     return back_to_home()
+
+
+@app.get("/health")
+async def health(request: Request):
+    """200 if the database answers and the checker is running, else 503.
+    Public endpoint: details go to the logs, never into the response."""
+    database = "ok"
+    try:
+        await db.ping(request.app.state.pool)
+    except Exception as exc:
+        database = "error"
+        log.warning("Health check: database not reachable: %r", exc)
+
+    age = checker.seconds_since_last_round()
+    checker_ok = age is not None and age <= 3 * checker.CHECK_INTERVAL
+    if not checker_ok:
+        log.warning("Health check: checker stalled, last round %s seconds ago", age)
+
+    healthy = database == "ok" and checker_ok
+    body = {
+        "status": "ok" if healthy else "error",
+        "database": database,
+        "checker": "ok" if checker_ok else "error",
+        "last_check_round_seconds_ago": None if age is None else round(age),
+    }
+    return JSONResponse(
+        body,
+        status_code=200 if healthy else 503,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.post("/monitors/{monitor_id}/delete")
