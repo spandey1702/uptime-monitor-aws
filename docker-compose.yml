@@ -1,0 +1,33 @@
+# Local development only: the app plus its own Postgres.
+# On AWS the app container runs alone and connects to RDS.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: uptime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      POSTGRES_DB: uptime
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptime -d uptime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # No "ports": only the app can reach the database, over Compose's private network
+
+  app:
+    build: ./app
+    environment:
+      DATABASE_URL: postgresql://uptime:${POSTGRES_PASSWORD}@db:5432/uptime
+      LOG_LEVEL: INFO
+    ports:
+      - "127.0.0.1:8000:8000"     # reachable from this Mac only
+    depends_on:
+      db:
+        condition: service_healthy  # don't start until Postgres accepts connections
+    restart: unless-stopped
+
+volumes:
+  db-data:
