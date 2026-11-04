@@ -15,8 +15,8 @@ from fastapi.templating import Jinja2Templates
 import checker
 import db
 
-# Configure logging once; everything goes to the terminal (stdout),
-# which Docker captures and CloudWatch can collect
+# Configure logging once; everything goes to stdout, which Docker captures
+# (read it with: docker logs uptime-app)
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",

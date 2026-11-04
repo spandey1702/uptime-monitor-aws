@@ -1,7 +1,4 @@
 .env
-*.tfstate*
-.terraform/
-__pycache__/
-*.pem
 .venv/
-notes.md
+__pycache__/
+.DS_Store
