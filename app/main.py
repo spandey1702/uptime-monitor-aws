@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import logging
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode, urlparse
@@ -15,15 +14,13 @@ from fastapi.templating import Jinja2Templates
 import checker
 import db
 
-# Configure logging once; everything goes to stdout, which Docker captures
-# (read it with: docker logs uptime-app)
+# Log to stdout so Docker captures it (docker logs uptime-app)
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 log = logging.getLogger("uptime")
 
-# Read the database address from the environment (never hard-code secrets)
 DATABASE_URL = os.environ["DATABASE_URL"]
 DB_HOST = urlparse(DATABASE_URL).hostname   # safe to log, no password
 
@@ -33,24 +30,24 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 MAX_MONITORS = 20
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once when the app starts
+    """Startup: open the database pool and start the checker. Shutdown: stop both."""
     log.info("Connecting to database at %s", DB_HOST)
     try:
         app.state.pool = await db.create_pool(DATABASE_URL)
     except Exception:
         log.exception("Startup failed: could not set up the database")
-        raise                                # still stop the app
+        raise                    # exit, so Docker's restart policy tries again
     log.info("Database ready, schema applied")
-    # Start the background checker; create_task returns immediately
+    # The checker runs inside this process, which is why the container
+    # runs a single uvicorn worker (more workers would check every site twice)
     checker_task = asyncio.create_task(checker.run(app.state.pool))
-    yield                                    # the app runs while we're paused here
-    # Runs once when the app stops
+    yield
     log.info("Shutting down: stopping checker, closing database pool")
     checker_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await checker_task                   # wait until it has actually stopped
+        await checker_task
     await app.state.pool.close()
 
 
@@ -118,8 +115,10 @@ async def health(request: Request):
         database = "error"
         log.warning("Health check: database not reachable: %r", exc)
 
+    # Stalled if no round has finished in 3 intervals: one slow or failed
+    # round is tolerated, a stuck checker is not
     age = checker.seconds_since_last_round()
-    checker_ok = age is not None and age <= 3 * checker.CHECK_INTERVAL
+    checker_ok =age is not None and age <= 3 * checker.CHECK_INTERVAL
     if not checker_ok:
         log.warning("Health check: checker stalled, last round %s seconds ago", age)
 
@@ -137,6 +136,7 @@ async def health(request: Request):
     )
 
 
+# POST rather than DELETE: HTML forms can only send GET and POST
 @app.post("/monitors/{monitor_id}/delete")
 async def remove_monitor(request: Request, monitor_id: int):
     if await db.delete_monitor(request.app.state.pool, monitor_id):

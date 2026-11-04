@@ -31,7 +31,10 @@ def seconds_since_last_round() -> float | None:
 
 async def is_blocked(host: str) -> bool:
     """SSRF guard: True if the host resolves to any private or internal address
-    (localhost, 10.x, 192.168.x, the EC2 metadata service 169.254.169.254, ...)."""
+    (localhost, 10.x, 192.168.x, the EC2 metadata service 169.254.169.254, ...).
+    Known gap: httpx looks the host up again when it connects, so a domain whose
+    DNS answer changes in between (DNS rebinding) could slip through. Connecting
+    to the IP checked here would close it."""
     loop = asyncio.get_running_loop()
     infos = await loop.getaddrinfo(host, None, type=socket.SOCK_STREAM)
     return any(not ipaddress.ip_address(info[4][0]).is_global for info in infos)
@@ -49,6 +52,8 @@ async def check_one(client: httpx.AsyncClient, monitor: asyncpg.Record) -> tuple
         # stream=True: read the status line and headers only, never download the body
         async with client.stream("GET", url) as response:
             latency_ms = round((time.perf_counter() - started) * 1000)
+            # Up = any status below 400. A redirect (3xx) counts as up: the
+            # server answered, we just don't follow it
             return (monitor_id, response.status_code < 400, response.status_code, latency_ms, None)
 
     except socket.gaierror:

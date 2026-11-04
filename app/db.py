@@ -9,7 +9,10 @@ log = logging.getLogger("uptime.db")
 # Table definitions, applied at startup
 SCHEMA = (Path(__file__).parent / "schema.sql").read_text()
 
-# Every site + its latest check + its 24h uptime, in one round trip
+# Every site + its latest check + its 24h uptime, in one round trip.
+# "uptime" averages all stored checks; delete_old_checks keeps only the last
+# 24 hours, so that average is the 24-hour uptime. "id DESC" breaks ties
+# when two checks share a timestamp.
 STATUS_QUERY = """
 SELECT m.id, m.name, m.url,
        last.is_up, last.status_code, last.latency_ms, last.error, last.checked_at,
@@ -32,7 +35,8 @@ ORDER BY m.id
 
 
 async def create_pool(database_url: str) -> asyncpg.Pool:
-    """Open the connection pool and create tables if missing."""
+    """Open the connection pool and create tables if missing.
+    schema.sql uses IF NOT EXISTS, so running it on every start is safe."""
     pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA)
