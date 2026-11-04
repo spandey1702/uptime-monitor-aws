@@ -1,7 +1,7 @@
 # Same Python version as local development; slim has ready-made wheels for asyncpg/uvloop
 FROM python:3.12-slim
 
-# Unbuffered output so every log line reaches Docker (and CloudWatch) immediately
+# Unbuffered output so every log line reaches Docker immediately
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
