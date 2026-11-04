@@ -69,7 +69,7 @@ For each choice, the option I didn't pick and why.
 | **Secrets** | **SSM Parameter Store** (SecureString) | `.env` file on the server; Secrets Manager | The password is encrypted and never on disk or in Git. The server reads it with its IAM role. Secrets Manager costs $0.40/month for features I don't need, like automatic rotation. |
 | **Deploy auth** | Dedicated IAM user, keys in GitHub Secrets | GitHub OIDC (no stored keys) | OIDC was my first choice. In this account, adding an identity provider requires upgrading the organization, which removes its spend limits. So I limited the deploy user to running one command on one instance (see [Security](#security)). |
 
-**Extras I chose: Docker and CI/CD.** Docker makes the app run the same on my laptop and on EC2. CI/CD means every push to `main` is built, deployed and health-checked without me logging in to the server. I skipped CloudWatch alarms and HTTPS to stay at $0 with no domain name. Both are on the [production list](#what-id-change-before-real-customers).
+**Extras I chose: Docker and CI/CD.** Docker makes the app run the same on my laptop and on EC2. CI/CD means every push to `main` is built, deployed and health-checked without me logging in to the server. Together they cover how code gets from a laptop to a running server, which is most of a DevOps engineer's daily work. I left out monitoring, HTTPS and infrastructure as code to keep the scope small, not because of cost: CloudWatch's free tier covers basic alarms, CloudFormation itself is free, and CloudFront can serve HTTPS on its own domain within its free tier. All three are on the [production list](#what-id-change-before-real-customers).
 
 ---
 
@@ -184,10 +184,10 @@ Docker uses the same endpoint for its `HEALTHCHECK`, and CI/CD uses it to accept
 
 ## What I'd change before real customers
 
-- **HTTPS:** a domain name, then an Application Load Balancer with an ACM certificate (or Caddy on the instance).
+- **HTTPS:** CloudFront in front of the instance (HTTPS on its own domain, within the free tier), or a custom domain with an ACM certificate on a load balancer.
 - **High availability:** an Auto Scaling group across two Availability Zones behind the load balancer, and Multi-AZ RDS. The checker would move to its own worker, so it doesn't run twice.
 - **OIDC for CI/CD** instead of stored keys, and a GitHub environment restricted to `main`.
-- **Infrastructure as code** (Terraform), so the whole setup can be reviewed and rebuilt.
+- **Infrastructure as code** (CloudFormation or Terraform), so the whole setup can be reviewed and rebuilt.
 - **Monitoring:** CloudWatch alarms on `/health`, CPU and RDS storage; logs shipped to CloudWatch Logs.
 - **Images in ECR**, built once in CI, instead of building on the instance.
 - **Tighter IAM:** the instance role limited to reading `/uptime/*` instead of the managed policy's broader Parameter Store access.
