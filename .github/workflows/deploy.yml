@@ -1,16 +1,13 @@
 # On every push to main: build the image, then deploy to EC2 through SSM.
 # AWS access uses the github-deploy IAM user, whose only permission is
 # running a command on the app instance. Its keys live in GitHub Secrets.
-# (OIDC would avoid stored keys, but it needs this account's advanced
-# features, which remove the spend limits.)
 name: Deploy
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:        # "Run workflow" button for manual redeploys
+  workflow_dispatch:       
 
-# One deploy at a time; a newer push waits for the running one
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -71,7 +68,7 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
         run: |
-          # Strip stray whitespace or newlines a pasted variable may carry
+          # Strip stray whitespace or newlines
           URL=$(printf '%s' "$APP_URL" | tr -d '[:space:]')
           echo "Checking $URL/health"
           curl -fsS --max-time 10 "$URL/health"
