@@ -68,4 +68,10 @@ jobs:
 
       # Check from outside AWS, the way a visitor reaches it
       - name: Check /health from the internet
-        run: curl -fsS --max-time 10 "${{ vars.APP_URL }}/health"
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          # Strip stray whitespace or newlines a pasted variable may carry
+          URL=$(printf '%s' "$APP_URL" | tr -d '[:space:]')
+          echo "Checking $URL/health"
+          curl -fsS --max-time 10 "$URL/health"
